@@ -1740,3 +1740,90 @@ tbody tr:hover { background: var(--bg-tertiary); }
 .w-full { width: 100%; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* ============================================================
+ * PROFILE — Avatar image, upload button, info grid
+ * ============================================================ */
+
+ .profile-avatar-wrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.profile-avatar-img {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--surface);
+  box-shadow: 0 10px 24px rgba(34, 197, 94, 0.30);
+  display: block;
+  transition: transform var(--transition);
+}
+.profile-avatar-img:hover {
+  transform: scale(1.03);
+}
+
+/* Keep fallback circle same size */
+.profile-avatar-wrap .profile-avatar-lg {
+  width: 96px;
+  height: 96px;
+}
+
+/* Camera button overlay */
+.avatar-upload-btn {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--green-500);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  border: 3px solid var(--surface);
+  transition: all var(--transition);
+  box-shadow: 0 4px 10px rgba(34, 197, 94, 0.35);
+}
+.avatar-upload-btn:hover {
+  background: var(--green-600);
+  transform: scale(1.1);
+}
+
+/* Profile info grid */
+.profile-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.info-field-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 6px;
+}
+.info-field-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Mobile tweaks */
+@media (max-width: 640px) {
+  .profile-avatar-wrap,
+  .profile-avatar-img,
+  .profile-avatar-wrap .profile-avatar-lg {
+    width: 80px;
+    height: 80px;
+  }
+  .profile-info-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Mail, Phone, Building2, Pencil, Save, X } from 'lucide-react'
+import { Mail, Phone, Building2, Pencil, Save, X, Camera } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { storage, STORAGE_KEYS } from '../utils/storage.js'
@@ -12,18 +12,25 @@ const DEFAULT_PROFILE = {
   email: 'admin@yusufflowermills.com',
   phone: '+880 1700-000000',
   company: 'Yusuf Flower Mills LTD',
+  avatar: '/Alveeee.png', // ← public folder থেকে load হবে
 }
 
 export default function Profile() {
   const { user } = useAuth()
   const { showToast } = useToast()
-  const [profile, setProfile] = useState(
-    () => storage.get(STORAGE_KEYS.PROFILE, null) || { ...DEFAULT_PROFILE, name: user?.name || DEFAULT_PROFILE.name }
-  )
+
+  const [profile, setProfile] = useState(() => {
+    const saved = storage.get(STORAGE_KEYS.PROFILE, null)
+    return saved || { ...DEFAULT_PROFILE, name: user?.name || DEFAULT_PROFILE.name }
+  })
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(profile)
+  const [imgError, setImgError] = useState(false)
 
-  const startEdit = () => { setDraft(profile); setEditing(true) }
+  const startEdit = () => {
+    setDraft(profile)
+    setEditing(true)
+  }
 
   const save = () => {
     if (!draft.name.trim() || !draft.email.trim()) {
@@ -36,6 +43,28 @@ export default function Profile() {
     showToast('Profile updated successfully', 'success')
   }
 
+  /* Handle avatar image change (file upload → base64 preview) */
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select an image file', 'error')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Image must be smaller than 2MB', 'error')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setDraft({ ...draft, avatar: ev.target.result })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  /* The avatar source: uploaded base64 OR default public path */
+  const avatarSrc = profile.avatar || '/Alveeee.png'
+
   return (
     <>
       <div className="page-header">
@@ -44,17 +73,50 @@ export default function Profile() {
           <p>Your account information</p>
         </div>
         {!editing ? (
-          <Button onClick={startEdit}><Pencil size={15} /> Edit Profile</Button>
+          <Button onClick={startEdit}>
+            <Pencil size={15} /> Edit Profile
+          </Button>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" onClick={() => setEditing(false)}><X size={15} /> Cancel</Button>
-            <Button onClick={save}><Save size={15} /> Save</Button>
+            <Button variant="secondary" onClick={() => setEditing(false)}>
+              <X size={15} /> Cancel
+            </Button>
+            <Button onClick={save}>
+              <Save size={15} /> Save
+            </Button>
           </div>
         )}
       </div>
 
+      {/* ─────── HERO CARD ─────── */}
       <div className="profile-hero">
-        <div className="profile-avatar-lg">{getInitials(profile.name)}</div>
+        <div className="profile-avatar-wrap">
+          {!imgError && avatarSrc ? (
+            <img
+              src={editing ? draft.avatar || '/Alveeee.png' : avatarSrc}
+              alt={profile.name}
+              className="profile-avatar-img"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="profile-avatar-lg">
+              {getInitials(profile.name)}
+            </div>
+          )}
+
+          {editing && (
+            <label className="avatar-upload-btn" title="Change photo">
+              <Camera size={14} />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                hidden
+              />
+            </label>
+          )}
+        </div>
+
         <div className="profile-info">
           <h2>{profile.name}</h2>
           <div className="role">{profile.position}</div>
@@ -66,6 +128,7 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* ─────── INFO CARD ─────── */}
       <div className="card">
         <div className="card-header">
           <div>
@@ -75,7 +138,7 @@ export default function Profile() {
         </div>
 
         {!editing ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 18 }}>
+          <div className="profile-info-grid">
             <InfoField label="Full Name" value={profile.name} />
             <InfoField label="Position" value={profile.position} />
             <InfoField label="Email" value={profile.email} />
@@ -83,26 +146,46 @@ export default function Profile() {
             <InfoField label="Company" value={profile.company} />
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+          <div className="profile-info-grid">
             <div className="form-group">
               <label className="form-label">Full Name</label>
-              <input className="form-input" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} />
+              <input
+                className="form-input"
+                value={draft.name}
+                onChange={e => setDraft({ ...draft, name: e.target.value })}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Position</label>
-              <input className="form-input" value={draft.position} onChange={e => setDraft({ ...draft, position: e.target.value })} />
+              <input
+                className="form-input"
+                value={draft.position}
+                onChange={e => setDraft({ ...draft, position: e.target.value })}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Email</label>
-              <input className="form-input" value={draft.email} onChange={e => setDraft({ ...draft, email: e.target.value })} />
+              <input
+                className="form-input"
+                value={draft.email}
+                onChange={e => setDraft({ ...draft, email: e.target.value })}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Phone</label>
-              <input className="form-input" value={draft.phone} onChange={e => setDraft({ ...draft, phone: e.target.value })} />
+              <input
+                className="form-input"
+                value={draft.phone}
+                onChange={e => setDraft({ ...draft, phone: e.target.value })}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Company</label>
-              <input className="form-input" value={draft.company} onChange={e => setDraft({ ...draft, company: e.target.value })} />
+              <input
+                className="form-input"
+                value={draft.company}
+                onChange={e => setDraft({ ...draft, company: e.target.value })}
+              />
             </div>
           </div>
         )}
@@ -111,13 +194,14 @@ export default function Profile() {
   )
 }
 
+/* ─────────────────────────────────────────────
+ *  InfoField — display-only field
+ * ───────────────────────────────────────────── */
 function InfoField({ label, value }) {
   return (
     <div>
-      <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>{value}</div>
+      <div className="info-field-label">{label}</div>
+      <div className="info-field-value">{value}</div>
     </div>
   )
 }
