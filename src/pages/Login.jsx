@@ -16,12 +16,12 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
-    setTimeout(() => {
-      const res = login(email.trim(), password)
+    try {
+      const res = await login(email.trim(), password)
       if (res.success) {
         showToast('Welcome back!', 'success')
         navigate('/')
@@ -29,8 +29,9 @@ export default function Login() {
         setError(res.error)
         showToast(res.error, 'error')
       }
+    } finally {
       setLoading(false)
-    }, 400)
+    }
   }
 
   return (

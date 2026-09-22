@@ -4,14 +4,14 @@ import {
   XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell,
 } from 'recharts'
 import {
-  TrendingUp, TrendingDown, Award, Calendar, Layers, BarChart3,
+  TrendingUp, Award, Calendar, Layers, BarChart3,
 } from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import {
   getDailySeries, getMonthlySeries, getProductWise,
   filterByRange,
 } from '../utils/calculations.js'
-import { formatNumber, formatDate } from '../utils/format.js'
+import { formatNumber } from '../utils/format.js'
 
 /* ─────────────────────────────────────────────
  *  Range filter options
@@ -98,9 +98,10 @@ export default function Analytics() {
     () => getDailySeries(
       { production: prodFiltered, delivery: delFiltered },
       Math.min(days, 90),
-      true
+      true,
+      products
     ),
-    [prodFiltered, delFiltered, days]
+    [prodFiltered, delFiltered, days, products]
   )
 
   /* ─── Monthly series ─── */

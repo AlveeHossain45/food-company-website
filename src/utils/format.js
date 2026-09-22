@@ -62,10 +62,22 @@ export const formatNumber = (n) => {
   }
   
   /**
-   * Get today's date as ISO string (YYYY-MM-DD)
-   * Useful for default date inputs.
+   * Format any Date as LOCAL calendar date (YYYY-MM-DD).
+   * Using toISOString() here would shift dates by a day in
+   * timezones ahead of UTC (e.g. Bangladesh, UTC+6).
    */
-  export const todayISO = () => new Date().toISOString().split('T')[0]
+  export const toLocalISO = (d = new Date()) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  /**
+   * Get today's LOCAL date as ISO string (YYYY-MM-DD)
+   * Useful for default date inputs and date comparisons.
+   */
+  export const todayISO = () => toLocalISO(new Date())
   
   /**
    * Get greeting based on current hour.

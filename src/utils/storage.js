@@ -34,6 +34,7 @@ export const STORAGE_KEYS = {
   PROFILE: 'profile',
   SETTINGS: 'settings',
   AUTH: 'auth',
+  TOKEN: 'token',
   VERSION: 'data_version',
 }
 

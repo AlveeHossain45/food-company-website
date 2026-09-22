@@ -7,13 +7,13 @@ import Modal from '../components/Modal.jsx'
 import Button from '../components/Button.jsx'
 import DataTable from '../components/DataTable.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
-import { PRODUCT_NAMES, getKgPerBag } from '../data/products.js'
+import { getKgPerBag } from '../data/products.js'
 import { formatDate, todayISO, formatNumber } from '../utils/format.js'
 import { getAvailableBags } from '../utils/calculations.js'
 
 const emptyForm = {
   date: todayISO(),
-  product: PRODUCT_NAMES[0],
+  product: '',
   quantity: '',
   unit: 'Bags',
   customer: '',
@@ -30,6 +30,7 @@ export default function Delivery() {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
   const [confirmId, setConfirmId] = useState(null)
+  const [saving, setSaving] = useState(false)
 
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
@@ -54,7 +55,7 @@ export default function Delivery() {
   /* ─── Open add / edit ─── */
   const openAdd = () => {
     setEditing(null)
-    setForm({ ...emptyForm, date: todayISO() })
+    setForm({ ...emptyForm, date: todayISO(), product: products[0]?.name || '' })
     setErrors({})
     setModalOpen(true)
   }
@@ -74,8 +75,8 @@ export default function Delivery() {
     if (!form.customer?.trim()) e.customer = 'Customer name is required'
 
     const bags = Number(form.quantity)
-    if (!form.quantity || isNaN(bags) || bags <= 0) {
-      e.quantity = 'Enter a positive number of bags'
+    if (!form.quantity || !Number.isInteger(bags) || bags <= 0) {
+      e.quantity = 'Enter a positive whole number of bags'
     } else {
       const available = availableBags(form.product, editing?.id)
       if (bags > available) {
@@ -87,7 +88,7 @@ export default function Delivery() {
   }
 
   /* ─── Submit ─── */
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return
     const payload = {
       ...form,
@@ -95,20 +96,31 @@ export default function Delivery() {
       unit: 'Bags',
       addedBy: user?.name || 'Admin',
     }
-    if (editing) {
-      updateDelivery(editing.id, payload)
-      showToast('Delivery record updated', 'success')
-    } else {
-      addDelivery(payload)
-      showToast('Delivery added successfully', 'success')
+    setSaving(true)
+    try {
+      if (editing) {
+        await updateDelivery(editing.id, payload)
+        showToast('Delivery record updated', 'success')
+      } else {
+        await addDelivery(payload)
+        showToast('Delivery added successfully', 'success')
+      }
+      setModalOpen(false)
+    } catch (err) {
+      showToast(err?.message || 'Failed to save delivery record', 'error')
+    } finally {
+      setSaving(false)
     }
-    setModalOpen(false)
   }
 
   /* ─── Delete ─── */
-  const handleDelete = () => {
-    deleteDelivery(confirmId)
-    showToast('Delivery record deleted', 'info')
+  const handleDelete = async () => {
+    try {
+      await deleteDelivery(confirmId)
+      showToast('Delivery record deleted', 'info')
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete record', 'error')
+    }
   }
 
   /* ─── Table columns ─── */
@@ -121,7 +133,7 @@ export default function Delivery() {
         <span className="badge badge-amber">
           {formatNumber(r.quantity)} bags
           <em style={{ fontStyle: 'normal', opacity: 0.75, marginLeft: 6, fontWeight: 500 }}>
-            · {formatNumber((Number(r.quantity) || 0) * getKgPerBag(r.product))} KG
+            · {formatNumber((Number(r.quantity) || 0) * getKgPerBag(r.product, products))} KG
           </em>
         </span>
       ),
@@ -149,7 +161,7 @@ export default function Delivery() {
 
   /* ─── Current available stock for the selected form product ─── */
   const currentAvailable = availableBags(form.product, editing?.id)
-  const currentKgPerBag = getKgPerBag(form.product)
+  const currentKgPerBag = getKgPerBag(form.product, products)
   const previewKg = (Number(form.quantity) || 0) * currentKgPerBag
 
   return (
@@ -184,7 +196,7 @@ export default function Delivery() {
           onChange={e => setProductFilter(e.target.value)}
         >
           <option value="">All Products</option>
-          {PRODUCT_NAMES.map(p => <option key={p} value={p}>{p}</option>)}
+          {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
         </select>
         {(dateFilter || productFilter || search) && (
           <Button
@@ -212,8 +224,8 @@ export default function Delivery() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit}>
-              {editing ? 'Save Changes' : 'Add Delivery'}
+            <Button onClick={handleSubmit} disabled={saving}>
+              {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Delivery'}
             </Button>
           </>
         }
@@ -236,9 +248,9 @@ export default function Delivery() {
               value={form.product}
               onChange={e => setForm({ ...form, product: e.target.value })}
             >
-              {PRODUCT_NAMES.map(p => (
-                <option key={p} value={p}>
-                  {p} ({getKgPerBag(p)} kg/bag)
+              {products.map(p => (
+                <option key={p.id} value={p.name}>
+                  {p.name} ({getKgPerBag(p.name, products)} kg/bag)
                 </option>
               ))}
             </select>

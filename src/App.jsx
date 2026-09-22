@@ -13,19 +13,22 @@ import Login from './pages/Login.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, initializing } = useAuth()
+  if (initializing) return null // restoring session — avoid login flash
   if (!isAuthenticated) return <Navigate to="/login" replace />
   return children
 }
 
 export default function App() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, initializing } = useAuth()
 
   return (
     <Routes>
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
+        element={
+          initializing ? null : isAuthenticated ? <Navigate to="/" replace /> : <Login />
+        }
       />
       <Route
         path="/"

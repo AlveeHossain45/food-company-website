@@ -3,11 +3,10 @@ import { Search, Download, Factory, Truck } from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import DataTable from '../components/DataTable.jsx'
 import Button from '../components/Button.jsx'
-import { PRODUCT_NAMES } from '../data/products.js'
-import { formatDate, formatNumber } from '../utils/format.js'
+import { formatDate, formatNumber, todayISO } from '../utils/format.js'
 
 export default function History() {
-  const { production, delivery } = useData()
+  const { production, delivery, products } = useData()
   const [tab, setTab] = useState('production')
   const [search, setSearch] = useState('')
   const [productFilter, setProductFilter] = useState('')
@@ -36,12 +35,13 @@ export default function History() {
       : [['Date', 'Product', 'Quantity', 'Unit', 'Customer', 'Note', 'Added By'],
          ...filtered.map(r => [r.date, r.product, r.quantity, r.unit, r.customer || '', r.note || '', r.addedBy || ''])]
 
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
+    const esc = c => `"${String(c ?? '').replace(/"/g, '""')}"`
+    const csv = rows.map(r => r.map(esc).join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${tab}-history-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `${tab}-history-${todayISO()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -106,7 +106,7 @@ export default function History() {
           onChange={e => setProductFilter(e.target.value)}
         >
           <option value="">All Products</option>
-          {PRODUCT_NAMES.map(p => <option key={p} value={p}>{p}</option>)}
+          {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
         </select>
         <input
           type="date"

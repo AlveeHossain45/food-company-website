@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Mail, Phone, Building2, Pencil, Save, X, Camera } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
@@ -7,40 +7,78 @@ import { getInitials } from '../utils/format.js'
 import Button from '../components/Button.jsx'
 
 const DEFAULT_PROFILE = {
-  name: 'Alvee Hossain',
   position: 'Software Developer / Administrator',
-  email: 'admin@yusufflowermills.com',
-  phone: '+880 1700-000000',
-  company: 'Yusuf Flower Mills LTD',
+  phone: '',
+  company: '',
   avatar: '/Alveeee.png', // ← public folder থেকে load হবে
 }
 
 export default function Profile() {
-  const { user } = useAuth()
+  const { user, updateProfile } = useAuth()
   const { showToast } = useToast()
 
+  /* Account fields come from the authenticated user (backend-backed);
+   * only the avatar lives in localStorage (no upload endpoint exists). */
   const [profile, setProfile] = useState(() => {
     const saved = storage.get(STORAGE_KEYS.PROFILE, null)
-    return saved || { ...DEFAULT_PROFILE, name: user?.name || DEFAULT_PROFILE.name }
+    return {
+      ...DEFAULT_PROFILE,
+      name: user?.name || '',
+      email: user?.email || '',
+      phone: user?.phone || '',
+      position: user?.position || DEFAULT_PROFILE.position,
+      company: user?.company || DEFAULT_PROFILE.company,
+      avatar: saved?.avatar || DEFAULT_PROFILE.avatar,
+    }
   })
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(profile)
   const [imgError, setImgError] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  /* Keep in sync when the auth user changes (e.g. after a save) */
+  useEffect(() => {
+    if (editing) return
+    setProfile(prev => ({
+      ...prev,
+      name: user?.name || prev.name,
+      email: user?.email || prev.email,
+      phone: user?.phone || prev.phone,
+      position: user?.position || prev.position,
+      company: user?.company || prev.company,
+    }))
+  }, [user, editing])
 
   const startEdit = () => {
     setDraft(profile)
     setEditing(true)
   }
 
-  const save = () => {
-    if (!draft.name.trim() || !draft.email.trim()) {
-      showToast('Name and Email are required', 'error')
+  const save = async () => {
+    if (!draft.name.trim()) {
+      showToast('Name is required', 'error')
       return
     }
-    setProfile(draft)
-    storage.set(STORAGE_KEYS.PROFILE, draft)
-    setEditing(false)
-    showToast('Profile updated successfully', 'success')
+    const patch = {
+      name: draft.name.trim(),
+      phone: (draft.phone || '').trim(),
+      position: (draft.position || '').trim(),
+      company: (draft.company || '').trim(),
+    }
+    setSaving(true)
+    try {
+      await updateProfile(patch) // → PUT /api/auth/profile (server mode)
+      const next = { ...profile, ...patch }
+      setProfile(next)
+      // avatar has no backend column — keep it device-local
+      storage.set(STORAGE_KEYS.PROFILE, { avatar: next.avatar })
+      setEditing(false)
+      showToast('Profile updated successfully', 'success')
+    } catch (err) {
+      showToast(err?.message || 'Failed to update profile', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   /* Handle avatar image change (file upload → base64 preview) */
@@ -81,8 +119,8 @@ export default function Profile() {
             <Button variant="secondary" onClick={() => setEditing(false)}>
               <X size={15} /> Cancel
             </Button>
-            <Button onClick={save}>
-              <Save size={15} /> Save
+            <Button onClick={save} disabled={saving}>
+              {saving ? 'Saving…' : <><Save size={15} /> Save</>}
             </Button>
           </div>
         )}
@@ -168,7 +206,10 @@ export default function Profile() {
               <input
                 className="form-input"
                 value={draft.email}
-                onChange={e => setDraft({ ...draft, email: e.target.value })}
+                readOnly
+                title="Email is your login address and cannot be changed"
+                style={{ opacity: 0.65, cursor: 'not-allowed' }}
+                onChange={() => {}}
               />
             </div>
             <div className="form-group">

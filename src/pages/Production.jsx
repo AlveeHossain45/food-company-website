@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Pencil, Trash2, Eye } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -7,19 +7,19 @@ import Modal from '../components/Modal.jsx'
 import Button from '../components/Button.jsx'
 import DataTable from '../components/DataTable.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
-import { PRODUCT_NAMES } from '../data/products.js'
+import { getKgPerBag } from '../data/products.js'
 import { formatDate, todayISO, formatNumber } from '../utils/format.js'
 
 const emptyForm = {
   date: todayISO(),
-  product: PRODUCT_NAMES[0],
+  product: '',
   quantity: '',
-  unit: 'KG',
+  unit: 'Bags',
   note: '',
 }
 
 export default function Production() {
-  const { production, addProduction, updateProduction, deleteProduction } = useData()
+  const { production, products, addProduction, updateProduction, deleteProduction } = useData()
   const { showToast } = useToast()
   const { user } = useAuth()
 
@@ -28,6 +28,7 @@ export default function Production() {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
   const [confirmId, setConfirmId] = useState(null)
+  const [saving, setSaving] = useState(false)
 
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
@@ -44,14 +45,14 @@ export default function Production() {
 
   const openAdd = () => {
     setEditing(null)
-    setForm(emptyForm)
+    setForm({ ...emptyForm, date: todayISO(), product: products[0]?.name || '' })
     setErrors({})
     setModalOpen(true)
   }
 
   const openEdit = (rec) => {
     setEditing(rec)
-    setForm({ ...rec })
+    setForm({ ...rec, quantity: String(rec.quantity) })
     setErrors({})
     setModalOpen(true)
   }
@@ -61,39 +62,62 @@ export default function Production() {
     if (!form.date) e.date = 'Date is required'
     if (!form.product) e.product = 'Product is required'
     const q = Number(form.quantity)
-    if (!form.quantity || isNaN(q) || q <= 0) e.quantity = 'Enter a positive quantity'
+    if (!form.quantity || !Number.isInteger(q) || q <= 0) {
+      e.quantity = 'Enter a positive whole number of bags'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return
     const payload = {
       ...form,
       quantity: Number(form.quantity),
+      unit: 'Bags',
       addedBy: user?.name || 'Admin',
     }
-    if (editing) {
-      updateProduction(editing.id, payload)
-      showToast('Production record updated', 'success')
-    } else {
-      addProduction(payload)
-      showToast('Production added successfully', 'success')
+    setSaving(true)
+    try {
+      if (editing) {
+        await updateProduction(editing.id, payload)
+        showToast('Production record updated', 'success')
+      } else {
+        await addProduction(payload)
+        showToast('Production added successfully', 'success')
+      }
+      setModalOpen(false)
+    } catch (err) {
+      showToast(err?.message || 'Failed to save production record', 'error')
+    } finally {
+      setSaving(false)
     }
-    setModalOpen(false)
   }
 
-  const handleDelete = () => {
-    deleteProduction(confirmId)
-    showToast('Production record deleted', 'info')
+  const handleDelete = async () => {
+    try {
+      await deleteProduction(confirmId)
+      showToast('Production record deleted', 'info')
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete record', 'error')
+    }
   }
+
+  const previewKG = (Number(form.quantity) || 0) * getKgPerBag(form.product, products)
 
   const columns = [
     { header: 'Date', accessor: 'date', render: r => formatDate(r.date) },
     { header: 'Product', accessor: 'product', render: r => <strong>{r.product}</strong> },
     {
       header: 'Quantity',
-      render: r => <span className="badge badge-green">{formatNumber(r.quantity)} {r.unit}</span>,
+      render: r => (
+        <span className="badge badge-green">
+          {formatNumber(r.quantity)} bags
+          <em style={{ fontStyle: 'normal', opacity: 0.75, marginLeft: 6, fontWeight: 500 }}>
+            · {formatNumber((Number(r.quantity) || 0) * getKgPerBag(r.product, products))} KG
+          </em>
+        </span>
+      ),
     },
     { header: 'Note', render: r => r.note || <span className="text-muted">—</span> },
     {
@@ -143,8 +167,12 @@ export default function Production() {
           value={dateFilter}
           onChange={e => setDateFilter(e.target.value)}
         />
-        {dateFilter && (
-          <Button variant="secondary" size="sm" onClick={() => setDateFilter('')}>
+        {(dateFilter || search) && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => { setDateFilter(''); setSearch('') }}
+          >
             Clear
           </Button>
         )}
@@ -165,7 +193,9 @@ export default function Production() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit}>{editing ? 'Save Changes' : 'Add Production'}</Button>
+            <Button onClick={handleSubmit} disabled={saving}>
+              {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Production'}
+            </Button>
           </>
         }
       >
@@ -187,35 +217,40 @@ export default function Production() {
               value={form.product}
               onChange={e => setForm({ ...form, product: e.target.value })}
             >
-              {PRODUCT_NAMES.map(p => <option key={p} value={p}>{p}</option>)}
+              {products.map(p => (
+                <option key={p.id} value={p.name}>
+                  {p.name} ({getKgPerBag(p.name, products)} kg/bag)
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Quantity</label>
-            <input
-              type="number"
-              min="0"
-              step="any"
-              className="form-input"
-              placeholder="e.g. 500"
-              value={form.quantity}
-              onChange={e => setForm({ ...form, quantity: e.target.value })}
-            />
-            {errors.quantity && <div className="form-error">{errors.quantity}</div>}
-          </div>
-          <div className="form-group">
-            <label className="form-label">Unit</label>
-            <select
-              className="form-select"
-              value={form.unit}
-              onChange={e => setForm({ ...form, unit: e.target.value })}
-            >
-              <option value="KG">KG</option>
-              <option value="Ton">Ton</option>
-            </select>
+        <div className="form-group">
+          <label className="form-label">Number of Bags</label>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            className="form-input"
+            placeholder="e.g. 10"
+            value={form.quantity}
+            onChange={e => setForm({ ...form, quantity: e.target.value })}
+          />
+          {errors.quantity && <div className="form-error">{errors.quantity}</div>}
+
+          <div className="delivery-info-bar">
+            <div className="dib-left">
+              <span>
+                Unit: <strong>Bags</strong> — every bag is packed by product weight
+              </span>
+            </div>
+            {previewKG > 0 && (
+              <div className="dib-right">
+                {formatNumber(form.quantity || 0)} bags × {getKgPerBag(form.product, products)} KG ={' '}
+                <strong>{formatNumber(previewKG)} KG</strong>
+              </div>
+            )}
           </div>
         </div>
 

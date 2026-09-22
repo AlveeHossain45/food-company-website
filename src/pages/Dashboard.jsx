@@ -13,8 +13,9 @@ import {
   getDailySeries, percentChange, getTodayByProduct,
 } from '../utils/calculations.js'
 import {
-  formatNumber, getGreeting, getFullDate, formatDateTime,
+  formatNumber, getGreeting, getFullDate, formatDateTime, formatDate, todayISO,
 } from '../utils/format.js'
+import { getKgPerBag } from '../data/products.js'
 
 /* ─────────────────────────────────────────────
  *  Chart range options
@@ -103,8 +104,8 @@ export default function Dashboard() {
 
   /* ─── Time series for charts ─── */
   const series = useMemo(
-    () => getDailySeries({ production, delivery }, range, true),
-    [production, delivery, range]
+    () => getDailySeries({ production, delivery }, range, true, products),
+    [production, delivery, products, range]
   )
 
   /* ─── Today's per-product snapshot ─── */
@@ -119,19 +120,19 @@ export default function Dashboard() {
       ...production.map(r => ({ ...r, type: 'production' })),
       ...delivery.map(r => ({ ...r, type: 'delivery' })),
     ]
-    return all.sort((a, b) => (b.id > a.id ? 1 : -1)).slice(0, 5)
+    const key = r => r.createdAt || `${r.date || ''}T00:00:00`
+    return all.sort((a, b) => key(b).localeCompare(key(a))).slice(0, 5)
   }, [production, delivery])
 
   /* ─── Today's total KG (for header chip) ─── */
   const todayProdKG = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayISO()
     return production
       .filter(r => r.date === today)
-      .reduce((sum, r) => {
-        const prod = products.find(p => p.name === r.product)
-        const kg = prod?.kgPerBag || 50
-        return sum + (Number(r.quantity) || 0) * kg
-      }, 0)
+      .reduce(
+        (sum, r) => sum + (Number(r.quantity) || 0) * getKgPerBag(r.product, products),
+        0
+      )
   }, [production, products])
 
   /* ─── Goal progress ─── */
@@ -270,7 +271,7 @@ export default function Dashboard() {
                       ? 'Produced'
                       : `Delivered to ${a.customer || 'Customer'}`}
                     {' · '}
-                    {formatDateTime(a.date)}
+                    {a.createdAt ? formatDateTime(a.createdAt) : formatDate(a.date)}
                   </div>
                 </div>
               </div>

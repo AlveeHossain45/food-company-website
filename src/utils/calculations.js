@@ -1,4 +1,4 @@
-import { formatDateShort } from './format.js'
+import { formatDateShort, toLocalISO, todayISO } from './format.js'
 import { getKgPerBag } from '../data/products.js'
 
 /* ============================================================
@@ -6,17 +6,20 @@ import { getKgPerBag } from '../data/products.js'
  * ------------------------------------------------------------
  * All quantities are stored in BAGS.
  * Total KG is computed using each product's kgPerBag.
+ * All date keys use the LOCAL calendar date (never UTC) so
+ * charts and "today" filters stay correct in any timezone.
  * ============================================================ */
 
-/** Get total KG for a single record (bags × kgPerBag) */
-export const recordToKG = (record) => {
+/** Get total KG for a single record (bags × kgPerBag).
+ *  Pass `products` so custom (non-catalog) weights resolve correctly. */
+export const recordToKG = (record, products = null) => {
   const bags = Number(record.quantity) || 0
-  return bags * getKgPerBag(record.product)
+  return bags * getKgPerBag(record.product, products)
 }
 
 /** Today's total in bags for production or delivery */
 export const getTodayBags = (records) => {
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayISO()
   return records
     .filter(r => r.date === today)
     .reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
@@ -27,14 +30,14 @@ export const getTotalBags = (records) =>
   records.reduce((s, r) => s + (Number(r.quantity) || 0), 0)
 
 /** Total KG across all records */
-export const getTotalKG = (records) =>
-  records.reduce((s, r) => s + recordToKG(r), 0)
+export const getTotalKG = (records, products = null) =>
+  records.reduce((s, r) => s + recordToKG(r, products), 0)
 
 /** Yesterday's total bags */
 export const getYesterdayBags = (records) => {
   const d = new Date()
   d.setDate(d.getDate() - 1)
-  const iso = d.toISOString().split('T')[0]
+  const iso = toLocalISO(d)
   return records
     .filter(r => r.date === iso)
     .reduce((s, r) => s + (Number(r.quantity) || 0), 0)
@@ -52,7 +55,7 @@ export const getStockByProduct = (production, delivery, products) => {
       .reduce((s, r) => s + (Number(r.quantity) || 0), 0)
 
     const remainingBags = producedBags - deliveredBags
-    const kgPerBag = p.kgPerBag || 50
+    const kgPerBag = Number(p.kgPerBag) || 50
 
     return {
       ...p,
@@ -68,7 +71,7 @@ export const getStockByProduct = (production, delivery, products) => {
 
 /** Today's per-product production & delivery snapshot */
 export const getTodayByProduct = (production, delivery, products) => {
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayISO()
 
   return products
     .map(p => {
@@ -80,22 +83,24 @@ export const getTodayByProduct = (production, delivery, products) => {
         .filter(r => r.product === p.name && r.date === today)
         .reduce((s, r) => s + (Number(r.quantity) || 0), 0)
 
+      const kgPerBag = Number(p.kgPerBag) || 50
+
       return {
         name: p.name,
-        kgPerBag: p.kgPerBag,
+        kgPerBag,
         productionBags: prodBags,
         deliveryBags: delBags,
         remainingBags: prodBags - delBags,
-        productionKG: prodBags * p.kgPerBag,
-        deliveryKG: delBags * p.kgPerBag,
-        remainingKG: (prodBags - delBags) * p.kgPerBag,
+        productionKG: prodBags * kgPerBag,
+        deliveryKG: delBags * kgPerBag,
+        remainingKG: (prodBags - delBags) * kgPerBag,
       }
     })
     .filter(p => p.productionBags > 0 || p.deliveryBags > 0)
 }
 
 /** Daily series (last N days) with bags + kg */
-export const getDailySeries = (records, days = 7, includeDelivery = null) => {
+export const getDailySeries = (records, days = 7, includeDelivery = null, products = null) => {
   const result = []
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -103,11 +108,11 @@ export const getDailySeries = (records, days = 7, includeDelivery = null) => {
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today)
     d.setDate(d.getDate() - i)
-    const iso = d.toISOString().split('T')[0]
+    const iso = toLocalISO(d)
 
     const prodRecords = records.production.filter(r => r.date === iso)
     const prodBags = prodRecords.reduce((s, r) => s + (Number(r.quantity) || 0), 0)
-    const prodKG = prodRecords.reduce((s, r) => s + recordToKG(r), 0)
+    const prodKG = prodRecords.reduce((s, r) => s + recordToKG(r, products), 0)
 
     const item = {
       date: iso,
@@ -119,7 +124,7 @@ export const getDailySeries = (records, days = 7, includeDelivery = null) => {
     if (includeDelivery) {
       const delRecords = records.delivery.filter(r => r.date === iso)
       const delBags = delRecords.reduce((s, r) => s + (Number(r.quantity) || 0), 0)
-      const delKG = delRecords.reduce((s, r) => s + recordToKG(r), 0)
+      const delKG = delRecords.reduce((s, r) => s + recordToKG(r, products), 0)
       item.delivery = delBags
       item.deliveryKG = delKG
     }
@@ -169,7 +174,7 @@ export const getProductWise = (production, delivery, products, metric = 'product
   })
 }
 
-/** Filter records by range */
+/** Filter records by range (inclusive, local dates) */
 export const filterByRange = (records, range) => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -184,8 +189,8 @@ export const filterByRange = (records, range) => {
     default:      return records
   }
 
-  const fromISO = from.toISOString().split('T')[0]
-  const toISO = today.toISOString().split('T')[0]
+  const fromISO = toLocalISO(from)
+  const toISO = toLocalISO(today)
   return records.filter(r => r.date >= fromISO && r.date <= toISO)
 }
 

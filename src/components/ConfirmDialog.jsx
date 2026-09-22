@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Modal from './Modal.jsx'
 import Button from './Button.jsx'
 
@@ -8,17 +9,29 @@ export default function ConfirmDialog({
   title = 'Are you sure?',
   message = 'This action cannot be undone.',
 }) {
+  const [busy, setBusy] = useState(false)
+
+  const handleConfirm = async () => {
+    setBusy(true)
+    try {
+      await onConfirm?.()
+    } finally {
+      setBusy(false)
+      onClose()
+    }
+  }
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       title={title}
       size="sm"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="danger" onClick={() => { onConfirm(); onClose() }}>
-            Delete
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="danger" onClick={handleConfirm} disabled={busy}>
+            {busy ? 'Working…' : 'Delete'}
           </Button>
         </>
       }
