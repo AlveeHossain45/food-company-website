@@ -12,8 +12,10 @@ const { Pool } = pg
  * ------------------------------------------------------------------ */
 const rawUrl = process.env.DATABASE_URL
 if (!rawUrl) {
-  console.error('FATAL: DATABASE_URL is not set. Put it in server/.env')
-  process.exit(1)
+  throw new Error(
+    'FATAL: DATABASE_URL is not set. Create server/.env for local dev, ' +
+    'or set DATABASE_URL in your Vercel project settings.'
+  )
 }
 
 const url = new URL(rawUrl)
@@ -263,6 +265,18 @@ export const initDb = async () => {
   await query(SCHEMA)
   await seedAdmin()
   await seedDemoData()
+}
+
+/* Run initDb once per process (serverless cold start), retrying after failures. */
+let readyPromise = null
+export const ensureDbReady = () => {
+  if (!readyPromise) {
+    readyPromise = initDb().catch((err) => {
+      readyPromise = null
+      throw err
+    })
+  }
+  return readyPromise
 }
 
 export const newId = () => randomUUID()

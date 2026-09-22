@@ -65,3 +65,27 @@ PORT=4000
 JWT_SECRET=<random string>
 DATABASE_URL=postgres://...?sslmode=require
 ```
+
+## Deploy to Vercel
+
+The repo is configured as a single Vercel project: the Vite frontend is
+served statically and every `/api/*` request is routed to the serverless
+function in `api/index.js`, which runs the same Express app
+(`server/app.js`) against PostgreSQL.
+
+1. Push the repo to GitHub/GitLab/Bitbucket and import it in Vercel
+   (framework auto-detected as **Vite**; `vercel.json` wires the API routes).
+2. In **Project → Settings → Environment Variables**, add:
+   - `DATABASE_URL` — your Postgres connection string (same one as `server/.env`)
+   - `JWT_SECRET` — a long random string (otherwise a dev fallback is used)
+3. Deploy. On first cold start the function creates the schema and seeds
+   the demo admin/products automatically (idempotent).
+4. Set the Vercel deployment region close to your database region
+   (Settings → Functions → Region) to keep queries fast.
+
+Notes:
+- `server/.env` is only used for local dev — Vercel reads env vars from
+  the dashboard, never from files.
+- Frontend and API share the origin in production, so the relative
+  `/api` base URL works with no CORS or rewrites changes.
+- Local workflow is unchanged: `npm run server` + `npm run dev`.
