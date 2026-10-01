@@ -10,6 +10,20 @@ React (Vite) frontend + Express/PostgreSQL backend.
 | Backend  | Express 4, node-postgres, JWT, bcryptjs   |
 | Database | PostgreSQL (Aiven) — credentials in `server/.env` |
 
+## Live Demo
+
+**https://food-company-website-e7vk.vercel.app**
+
+## Screenshots
+
+> **Placeholder** — capture the app and save images under `screenshots/`, then replace the paths below.
+
+```md
+![Dashboard](screenshots/dashboard.png)
+![Production](screenshots/production.png)
+![Delivery](screenshots/delivery.png)
+```
+
 ## Run
 
 ```bash
